@@ -1,8 +1,17 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { publishCast as _ } from '@standard-crypto/farcaster-js';
+import { publishCast } from '@standard-crypto/farcaster-js';
 import { AlchemyProvider } from "@ethersproject/providers";
 import { env } from '../../env/server.mjs'
 import { Wallet } from "ethers";
+import Twitter from 'twitter-lite';
+
+const client = new Twitter({
+    consumer_key: env.TWITTER_CLIENT_ID,
+    consumer_secret: env.TWITTER_CLIENT_SECRET,
+
+})
+
+
 
 const validateRequest = (req: NextApiRequest, res: NextApiResponse<Data>) => {
     if (req.method !== 'POST') return res.status(300).end()
@@ -20,19 +29,16 @@ type Data = {
     error?: string | null
 }
 
-const wait = (ms: number): Promise<void> => new Promise(res => setTimeout(res, ms))
-
 const publishTweet = async (message: string) => {
     console.log(`Tweeting ${message}`)
-    await wait(3000)
+    // client.post()
 }
 
 const publishCastMessage = async (message: string) => {
     console.log(`Casting ${message}`)
     const provider = new AlchemyProvider("goerli");
     const wallet = Wallet.fromMnemonic(env.NEMO);
-    await wait(3000)
-    // publishCast(wallet, provider, text)
+    publishCast(wallet, provider, message)
 }
 
 const handler = async (req: NextApiRequest, res: NextApiResponse<Data>) => {
