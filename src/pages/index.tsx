@@ -43,22 +43,12 @@ const Home: NextPage = () => {
 
             <main className="container mx-auto flex min-h-screen flex-col items-center justify-center p-4">
                 <h1 className="text-5xl font-extrabold leading-normal text-gray-700 md:text-[5rem]">
-                    <span className="text-sky-300">T</span> Cast
+                    <span className="text-purple-500">T</span> Cast
                 </h1>
                 <p className="text-2xl text-gray-700">Tweeting & Casting made easy</p>
 
-                <div className="flex flex-col w-full justify-center">
-                    <Selector selectedPlatforms={selectedPlatforms} setSelectedPlatforms={setSelectedPlatforms} />
-                    <div className="flex flex-col justify-center items-center">
-                        <TextArea value={text} onChange={
-                            (e) => {
-                                setText(e.target.value as string)
-                            }
-                        } />
-                        <div className="">
-                            <button className="flex mt-2 py-2 px-2 cursor-pointer bg-sky-500 rounded-md " onClick={onSubmit}>Send</button>
-                        </div>
-                    </div>
+                <div className="flex flex-col w-full justify-center text-md text-center mt-4">
+                Coming Soon
                 </div>
             </main>
         </>
