@@ -43,7 +43,7 @@ const Home: NextPage = () => {
 
             <main className="container mx-auto flex min-h-screen flex-col items-center justify-center p-4">
                 <h1 className="text-5xl font-extrabold leading-normal text-gray-700 md:text-[5rem]">
-                    <span className="text-purple-500">T</span> Cast
+                    <span className="text-[#8a63d2]">T</span> Cast
                 </h1>
                 <p className="text-2xl text-gray-700">Tweeting & Casting made easy</p>
 
