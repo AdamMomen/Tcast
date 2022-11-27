@@ -53,10 +53,9 @@ const Home: NextPage<{ session: Session }> = ({ session }) => {
                         Not signed in <br />
                         <button onClick={() => signIn()}>Sign in</button>
                     </>}
-                    {session && <>
-                        Signed in as {session?.user?.name} <br />
+                    {session &&
                         <button onClick={() => signOut()}>Sign out</button>
-                    </>}
+                    }
                 </p>
                 {session &&
                     <Container
