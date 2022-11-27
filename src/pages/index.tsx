@@ -1,6 +1,8 @@
 import { type NextPage } from "next";
 import Head from "next/head";
-import { ChangeEventHandler, Dispatch, FC, SetStateAction, TextareaHTMLAttributes, useState } from "react";
+import { ChangeEventHandler, Dispatch, FC, SetStateAction, useState } from "react";
+import { Session } from 'next-auth';
+import { signIn, signOut, getSession } from 'next-auth/react';
 import z from 'zod'
 
 const PlatfromsSchema = z.object({
@@ -10,27 +12,24 @@ const PlatfromsSchema = z.object({
 
 type Platforms = z.infer<typeof PlatfromsSchema>
 
-const Home: NextPage = () => {
+const Home: NextPage<{ session: Session }> = ({ session }) => {
     const [selectedPlatforms, setSelectedPlatforms] = useState<Platforms>({ twitter: false, farcaster: true })
     const [text, setText] = useState<string>("")
 
-    const onSubmit = async () => {
-        const response = await fetch("http://localhost:3000/api/submit", {
-            method: "POST",
-            headers: {
-                contentType: "application/json"
-            },
-            body: JSON.stringify({
-                platforms: selectedPlatforms,
-                text
-            })
-        })
-        const data = await response.json()
-        console.log(data)
-        if (data.error) {
-            console.log(data.result.error)
+    const submitMessage = async () => {
+        const message = {
+            platforms: selectedPlatforms,
+            text
         }
 
+        fetch("http://localhost:3000/api/submit", {
+            method: "POST",
+            headers: { contentType: "application/json" },
+            body: JSON.stringify(message)
+        })
+            .then(res => res.json())
+            .then(console.log)
+            .catch(console.error)
     }
 
     return (
@@ -46,14 +45,58 @@ const Home: NextPage = () => {
                     <span className="text-[#8a63d2]">T</span> Cast
                 </h1>
                 <p className="text-2xl text-gray-700">Tweeting & Casting made easy</p>
-
-                <div className="flex flex-col w-full justify-center text-md text-center mt-4">
-                Coming Soon
-                </div>
+                {session && <h1 className="">
+                    Welcome {session?.user?.name}
+                </h1>}
+                <p className="">
+                    {!session && <>
+                        Not signed in <br />
+                        <button onClick={() => signIn()}>Sign in</button>
+                    </>}
+                    {session && <>
+                        Signed in as {session?.user?.name} <br />
+                        <button onClick={() => signOut()}>Sign out</button>
+                    </>}
+                </p>
+                {session &&
+                    <Container
+                        selectedPlatforms={selectedPlatforms}
+                        text={text}
+                        setSelectedPlatforms={setSelectedPlatforms}
+                        onSubmit={submitMessage}
+                        setText={setText}
+                    />}
             </main>
         </>
     );
 };
+
+type ContainerProps = {
+    selectedPlatforms: Platforms;
+    text: string;
+    setSelectedPlatforms: Dispatch<SetStateAction<Platforms>>;
+    setText: Dispatch<SetStateAction<string>>;
+    onSubmit: () => void
+};
+
+const Container: FC<ContainerProps> = ({ selectedPlatforms, text, setSelectedPlatforms, setText, onSubmit }) => {
+    return (
+        <div className="flex flex-col w-full justify-center">
+            <Selector selectedPlatforms={selectedPlatforms} setSelectedPlatforms={setSelectedPlatforms} />
+            <div className="flex flex-col justify-center items-center">
+                <TextArea value={text} onChange={
+                    (e) => {
+                        const text = e.target.value as string
+                        setText(text)
+                    }
+                } />
+                <div className="">
+                    <button className="flex mt-2 py-2 px-2 cursor-pointer bg-sky-500 rounded-md " onClick={onSubmit}>Send</button>
+                </div>
+            </div>
+        </div>
+    )
+}
 
 
 type SelectorProps = {
@@ -62,8 +105,7 @@ type SelectorProps = {
 }
 
 const Selector: FC<SelectorProps> = ({ selectedPlatforms, setSelectedPlatforms: setSelectedOptions }) => {
-    const onChange = (event: any) => {
-        const value = event.target.value as "twitter" | "farcaster"
+    const onChange = (value: "twitter" | "farcaster") => {
         setSelectedOptions(prev => ({ ...prev, [value]: !prev[value] }))
     }
 
@@ -79,7 +121,7 @@ const Selector: FC<SelectorProps> = ({ selectedPlatforms, setSelectedPlatforms: 
                                     type="checkbox"
                                     id="flexCheckChecked"
                                     checked={selectedPlatforms[platform as "twitter" | "farcaster"]}
-                                    onChange={onChange}
+                                    onChange={(e) => onChange(e.target.value as "twitter" | "farcaster")}
                                     value={platform}
                                 ></input>
                                 <label
@@ -109,10 +151,20 @@ const TextArea: FC<TextAreaProps> = ({ value, onChange }) => (
           border border-slate-300 rounded-md py-2 pl-3 pr-3 shadow-sm focus:outline-none \
           focus:border-sky-500 focus:ring-sky-500 focus:ring-1 sm:text-sm h-52"
             placeholder="What's happening?"
-            // type="text"
             value={value}
             onChange={onChange}
         />
     </div>
 )
 export default Home;
+
+// TODO: check if this is already impolemented under the hood
+export const getServerSideProps = async (context: any) => {
+    const session = await getSession(context);
+    console.log({session})
+    return {
+        props: {
+            session
+        }
+    }
+}
