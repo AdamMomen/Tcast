@@ -9,8 +9,13 @@ export const authOptions: NextAuthOptions = {
   },
   debug: true,
   callbacks: {
-    async jwt({ token }) {
-      return token;
+    async jwt({ token, account}) {
+        console.log({token, account})
+        if (account && account.access_token) {
+            token.accessToken = account?.access_token || ""
+            token.refreshToken = account?.refresh_token || ""
+        }
+      return {...token};
     },
     async signIn() {
       return true;

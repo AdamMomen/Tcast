@@ -3,21 +3,18 @@ import { publishCast } from '@standard-crypto/farcaster-js';
 import { AlchemyProvider } from "@ethersproject/providers";
 import { env } from '../../env/server.mjs'
 import { Wallet } from "ethers";
-import Twitter from 'twitter-lite';
+import { TwitterApi } from 'twitter-api-v2';
 import { getToken } from 'next-auth/jwt';
 
+type Data = {
+    result?: any;
+    error?: string | null
+}
 
-
-/* TODO: complate me test if this is getting the right information.
-    twApp
-    .getRequestToken("oob")
-    .then(res => {
-    console.log(res)
-        twClient = new Twitter({
-        })
-    })
-    .catch(console.error);
-*/
+type PublishTweetOpts = {
+    accessToken?: string | undefined;
+    accessSecret?: string | undefined;
+}
 
 const validateRequest = (req: NextApiRequest, res: NextApiResponse<Data>) => {
     if (req.method !== 'POST') return res.status(300).end()
@@ -30,19 +27,18 @@ const validateRequest = (req: NextApiRequest, res: NextApiResponse<Data>) => {
     })
 }
 
-type Data = {
-    result?: string | null
-    error?: string | null
-}
+const publishTweet = async (message: string, options: PublishTweetOpts) => {
+    console.log(`tweeting ${message}`)
 
-const publishTweet = async (client: any, message: string) => {
-    if (!client) return
+    const { TWITTER_CLIENT_ID, TWITTER_CLIENT_SECRET } = env
 
-    // TODO: Please for the love of god fix this
-    (client as Twitter).post('statuses/update', { status: message })
-        .then(result => {
-            console.log(`Successfully tweeted this: ${result.text}`);
-        }).catch(console.error);
+    const client = new TwitterApi({
+        appKey: TWITTER_CLIENT_ID,
+        appSecret: TWITTER_CLIENT_SECRET,
+        ...options
+    })
+
+    return client.v2.tweet(message)
 }
 
 const publishCastMessage = async (message: string) => {
@@ -56,31 +52,34 @@ const publishCastMessage = async (message: string) => {
 
 const handler = async (req: NextApiRequest, res: NextApiResponse<Data>) => {
 
+    const secret = env.NEXTAUTH_SECRET;
+    const token = await getToken({ req, secret })
+    if (!token) return res.status(200).json({
+        error: "Missing twitter access tokens"
+    })
     req.body = JSON.parse(req.body)
     validateRequest(req, res)
-    const token = await getToken({ req, secret: env.NEXTAUTH_SECRET })
 
-    const client = new Twitter({
-        extension: false,
-        consumer_key: env.TWITTER_CLIENT_ID,
-        consumer_secret: env.TWITTER_CLIENT_SECRET,
-        // @ts-ignore
-        access_token_key: token.twitter.oauth_token,
-        // @ts-ignore
-        access_token_secret: token.twitter.oauth_token_secret
-    });
+    //@ts-ignore
+    const { accessToken, refreshToken: accessSecret }
+        = await getToken({ req, secret: env.NEXTAUTH_SECRET })
 
+
+    let result = undefined;
     const { platforms, text } = req.body
 
     if (platforms.farcaster) {
-        await publishCastMessage(text)
-
+        result = await publishCastMessage(text)
     }
+
     if (platforms.twitter) {
-        await publishTweet(client, text)
+        result = await publishTweet(text, {
+            accessToken,
+            accessSecret
+        })
     }
 
-    res.status(200).json({ result: 'success' })
+    res.status(200).json({ result })
 }
 
 export default handler
