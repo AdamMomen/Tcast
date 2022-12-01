@@ -5,6 +5,7 @@ import { env } from '../../env/server.mjs'
 import { Wallet } from "ethers";
 import { TwitterApi } from 'twitter-api-v2';
 import { getToken } from 'next-auth/jwt';
+import getFCpkByTwitterId from '../../server/common/get-farcaster-private-keys-by-twitter-id'
 import Error from 'next/error.js';
 
 type Data = {
@@ -61,9 +62,9 @@ const publishTweet = async (message: string, options: PublishTweetOpts) => {
     return client.v1.tweet(message, { media_ids: mediaId })
 }
 
-const publishCastMessage = async (message: string) => {
+const publishCastMessage = async (message: string, privateKey: string) => {
     const provider = new AlchemyProvider("goerli");
-    const wallet = Wallet.fromMnemonic(env.NEMO);
+    const wallet = Wallet.fromMnemonic(privateKey);
     publishCast(wallet, provider, message)
         .then(result => {
             console.log(`Successfully casted this: ${result.body.data.text}`);
@@ -83,15 +84,16 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<Data>) => {
         validateRequest(req, res)
 
         //@ts-ignore
-        const { accessToken, refreshToken: accessSecret }
+        const { accessToken, refreshToken: accessSecret, userId: twitterId }
             = await getToken({ req, secret: env.NEXTAUTH_SECRET })
-
         let result = undefined;
 
         const { platforms, text, media } = req.body
 
         if (platforms.farcaster) {
-            result = await publishCastMessage(text)
+            const fcPrivateKey = getFCpkByTwitterId(twitterId)
+            if (!fcPrivateKey) throw new Error("Couldn not get user's farcaster private key")
+            result = await publishCastMessage(text, fcPrivateKey)
         }
 
         if (platforms.twitter) {

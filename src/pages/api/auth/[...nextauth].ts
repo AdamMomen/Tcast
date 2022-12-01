@@ -10,16 +10,22 @@ export const authOptions: NextAuthOptions = {
     debug: true,
     callbacks: {
         async jwt({ token, account }) {
-            console.log({ token })
-            if (account && account.oauth_token && account.oauth_token_secret ) {
-                token.accessToken = account?.oauth_token || ""
-                token.refreshToken = account?.oauth_token_secret || ""
+            if (account && account.oauth_token && account.oauth_token_secret) {
+                token.userId = account?.providerAccountId
+                token.accessToken = account.oauth_token
+                token.refreshToken = account.oauth_token_secret
             }
             return { ...token };
         },
         async signIn() {
             return true;
         },
+        async session({ session, token }) {
+            if (token?.userId && session.user) {
+                session.user.id = token.userId as string
+            }
+            return session
+        }
     },
     providers: [
         TwitterProvider({
