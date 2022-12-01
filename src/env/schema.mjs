@@ -20,6 +20,7 @@ export const serverSchema = z.object({
   ),
   TWITTER_CLIENT_ID: z.string(),
   TWITTER_CLIENT_SECRET: z.string(),
+  BEARER_TOKEN: z.string(),
   NEMO: z.string()
 });
 

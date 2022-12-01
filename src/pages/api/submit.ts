@@ -12,6 +12,11 @@ type Data = {
 }
 
 type PublishTweetOpts = {
+    media: {
+        name: string;
+        data: string
+        mimeType: string;
+    }
     accessToken?: string | undefined;
     accessSecret?: string | undefined;
 }
@@ -38,7 +43,20 @@ const publishTweet = async (message: string, options: PublishTweetOpts) => {
         ...options
     })
 
-    return client.v2.tweet(message)
+    let mediaId = undefined;
+
+    if (options.media) {
+        console.log('here')
+        const { data } = options.media
+        mediaId = await client.v1.uploadMedia(data,
+            {
+                mimeType: options.media.mimeType,
+                target: 'tweet'
+            }
+        )
+    }
+    console.log('mediaId', mediaId)
+    return client.v1.tweet(message, { media_ids: String(mediaId) })
 }
 
 const publishCastMessage = async (message: string) => {
@@ -66,7 +84,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<Data>) => {
 
 
     let result = undefined;
-    const { platforms, text } = req.body
+    const { platforms, text, media } = req.body
 
     if (platforms.farcaster) {
         result = await publishCastMessage(text)
@@ -75,10 +93,10 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<Data>) => {
     if (platforms.twitter) {
         result = await publishTweet(text, {
             accessToken,
-            accessSecret
+            accessSecret,
+            media
         })
     }
-
     res.status(200).json({ result })
 }
 

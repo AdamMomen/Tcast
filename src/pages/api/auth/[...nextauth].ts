@@ -12,8 +12,8 @@ export const authOptions: NextAuthOptions = {
         async jwt({ token, account }) {
             console.log({ token })
             if (account && account.access_token) {
-                token.accessToken = account?.access_token || ""
-                token.refreshToken = account?.refresh_token || ""
+                token.accessToken = account?.oauth_token || ""
+                token.refreshToken = account?.oauth_token_secret || ""
             }
             return { ...token };
         },
