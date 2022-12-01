@@ -5,10 +5,11 @@ import { env } from '../../env/server.mjs'
 import { Wallet } from "ethers";
 import { TwitterApi } from 'twitter-api-v2';
 import { getToken } from 'next-auth/jwt';
+import Error from 'next/error.js';
 
 type Data = {
     result?: any;
-    error?: string | null
+    error?: any
 }
 
 type PublishTweetOpts = {
@@ -36,6 +37,7 @@ const publishTweet = async (message: string, options: PublishTweetOpts) => {
     console.log(`tweeting ${message}`)
 
     const { TWITTER_CLIENT_ID, TWITTER_CLIENT_SECRET } = env
+    console.log({ options })
 
     const client = new TwitterApi({
         appKey: TWITTER_CLIENT_ID,
@@ -46,17 +48,17 @@ const publishTweet = async (message: string, options: PublishTweetOpts) => {
     let mediaId = undefined;
 
     if (options.media) {
-        console.log('here')
         const { data } = options.media
-        mediaId = await client.v1.uploadMedia(data,
+
+        mediaId = await client.v1.uploadMedia(
+            Buffer.from(data, 'binary'),
             {
                 mimeType: options.media.mimeType,
-                target: 'tweet'
             }
         )
     }
-    console.log('mediaId', mediaId)
-    return client.v1.tweet(message, { media_ids: String(mediaId) })
+
+    return client.v1.tweet(message, { media_ids: mediaId })
 }
 
 const publishCastMessage = async (message: string) => {
@@ -70,34 +72,57 @@ const publishCastMessage = async (message: string) => {
 
 const handler = async (req: NextApiRequest, res: NextApiResponse<Data>) => {
 
-    const secret = env.NEXTAUTH_SECRET;
-    const token = await getToken({ req, secret })
-    if (!token) return res.status(200).json({
-        error: "Missing twitter access tokens"
-    })
-    req.body = JSON.parse(req.body)
-    validateRequest(req, res)
+    try {
 
-    //@ts-ignore
-    const { accessToken, refreshToken: accessSecret }
-        = await getToken({ req, secret: env.NEXTAUTH_SECRET })
-
-
-    let result = undefined;
-    const { platforms, text, media } = req.body
-
-    if (platforms.farcaster) {
-        result = await publishCastMessage(text)
-    }
-
-    if (platforms.twitter) {
-        result = await publishTweet(text, {
-            accessToken,
-            accessSecret,
-            media
+        const secret = env.NEXTAUTH_SECRET;
+        const token = await getToken({ req, secret })
+        if (!token) return res.status(200).json({
+            error: "Missing twitter access tokens"
         })
+        req.body = JSON.parse(req.body)
+        validateRequest(req, res)
+
+        //@ts-ignore
+        const { accessToken, refreshToken: accessSecret }
+            = await getToken({ req, secret: env.NEXTAUTH_SECRET })
+
+        let result = undefined;
+
+        const { platforms, text, media } = req.body
+
+        if (platforms.farcaster) {
+            result = await publishCastMessage(text)
+        }
+
+        if (platforms.twitter) {
+            result = await publishTweet(text, {
+                accessToken,
+                accessSecret,
+                media
+            })
+        }
+
+        console.log('result is:', result)
+        const activatedPlatforms = Object.keys(platforms)
+            .map((key) => { if (platforms[key]) return key })
+            .filter(el => el)
+            .join(' and ')
+
+        res.status(200).json({ result: `Successfully posted to ${activatedPlatforms}` })
     }
-    res.status(200).json({ result })
+
+    catch (error: Error) {
+        const response =
+        {
+            error:
+                error?.message ?
+                    { message: error.message } :
+                    error
+        }
+
+        res.status(200).json(response)
+
+    }
 }
 
 export default handler

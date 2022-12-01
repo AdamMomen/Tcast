@@ -4,6 +4,10 @@ import { ChangeEventHandler, Dispatch, FC, SetStateAction, useEffect, useRef, us
 import { Session } from 'next-auth';
 import { signIn, signOut, getSession } from 'next-auth/react';
 import z from 'zod'
+import toast, { Toaster } from 'react-hot-toast';
+
+
+
 
 const wait = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
@@ -25,6 +29,7 @@ const Home: NextPage<{ session: Session }> = ({ session }) => {
     const [text, setText] = useState<string>("")
     const [file, setFile] = useState<File>(null)
 
+
     const submitMessage = async () => {
         const message = {
             platforms: selectedPlatforms,
@@ -32,14 +37,24 @@ const Home: NextPage<{ session: Session }> = ({ session }) => {
             media: file
         }
 
-        fetch("http://localhost:3000/api/submit", {
+        const response = await fetch("http://localhost:3000/api/submit", {
             method: "POST",
             headers: { contentType: "application/json" },
             body: JSON.stringify(message)
         })
-            .then(res => res.json())
-            .then(console.log)
-            .catch(console.error)
+
+        if (!response.ok) {
+            toast.error('Netowrk Error')
+            return
+        }
+
+        const data = await response.json()
+
+        if (data?.error) {
+            toast.error(data.error.message)
+            return;
+        }
+        toast.success(data.result)
     }
 
     return (
@@ -51,6 +66,7 @@ const Home: NextPage<{ session: Session }> = ({ session }) => {
             </Head>
 
             <main className="container mx-auto flex min-h-screen flex-col items-center justify-center p-4">
+                <Toaster />
                 <h1 className="text-5xl font-extrabold leading-normal text-gray-700 md:text-[5rem]">
                     <span className="text-[#8a63d2]">T</span> Cast
                 </h1>
@@ -71,7 +87,8 @@ const Home: NextPage<{ session: Session }> = ({ session }) => {
                         setText={setText}
                         file={file}
                         setFile={setFile}
-                    />}
+                    />
+                }
             </main>
         </>
     );
@@ -96,8 +113,8 @@ const Container: FC<ContainerProps> = ({ selectedPlatforms, text, setSelectedPla
 
         const fileReader = new FileReader();
         fileReader.readAsBinaryString(file);
+        // fileReader.readAsArrayBuffer(file)
 
-        console.log(file)
         fileReader.onloadend = () => {
             const fileContent = fileReader.result;
             const { name, type: mimeType } = file
@@ -111,10 +128,7 @@ const Container: FC<ContainerProps> = ({ selectedPlatforms, text, setSelectedPla
 
     const hiddenFileInput = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        if (!hiddenFileInput.current) return
-        hiddenFileInput.current?.click()
-    }, [hiddenFileInput])
+
 
     return (
         <div className="flex flex-col w-full justify-center">
@@ -137,7 +151,7 @@ const Container: FC<ContainerProps> = ({ selectedPlatforms, text, setSelectedPla
                         }
                     } />
                 </div>
-                <input ref={hiddenFileInput} type="file" onChange={onFileChange} className="hidden" />
+                <input ref={hiddenFileInput} type="file" onChange={onFileChange} className="" />
                 <div className="">
                     <button disabled={!text}
                         className={`flex mt-2 py-2 px-2 cursor-pointer bg-sky-500 rounded-md ${!text ? 'bg-sky-200' : ''}`} onClick={onSubmit}>
