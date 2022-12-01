@@ -13,7 +13,7 @@ const PlatfromsSchema = z.object({
 type Platforms = z.infer<typeof PlatfromsSchema>
 
 const Home: NextPage<{ session: Session }> = ({ session }) => {
-    const [selectedPlatforms, setSelectedPlatforms] = useState<Platforms>({ twitter: false, farcaster: true })
+    const [selectedPlatforms, setSelectedPlatforms] = useState<Platforms>({ twitter: true, farcaster: false })
     const [text, setText] = useState<string>("")
 
     const submitMessage = async () => {
@@ -160,10 +160,7 @@ export default Home;
 // TODO: check if this is already impolemented under the hood
 export const getServerSideProps = async (context: any) => {
     const session = await getSession(context);
-    console.log({session})
     return {
-        props: {
-            session
-        }
+        props: { session }
     }
 }
