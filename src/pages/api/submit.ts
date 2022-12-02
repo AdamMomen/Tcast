@@ -24,8 +24,28 @@ type PublishTweetOpts = {
     accessSecret?: string | undefined;
 }
 
-const validateRequest = (req: NextApiRequest, res: NextApiResponse<Data>, token: JWT | null) => {
-    if (req.method !== 'POST') return res.status(300).end()
+type DecryptedToken = {
+    userId: string;
+    accessToken: string;
+    refreshToken: string;
+}
+
+const validateAndExtractToken = (token: JWT | null): DecryptedToken => {
+    if (!token) throw new ApiError(400, "Missing Twitter Access Tokens")
+    else if (!token?.userId) throw new ApiError(400, "Error Validating Token - Missing twitter Id Access Tokens - make sure you relogin")
+    else if (!token?.accessToken) throw new ApiError(400, "Error Validating Token - Missing twitter Access Tokens - make sure you relogin")
+    else if (!token?.refreshToken) throw new ApiError(400, "Error Validating Token - Missing twitter Refresh Tokens - make sure you relogin")
+
+    const { userId, accessToken, refreshToken } = token as DecryptedToken
+    return {
+        userId,
+        accessToken,
+        refreshToken
+    }
+}
+
+const validateRequest = (req: NextApiRequest): void => {
+    if (req.method !== 'POST') throw new ApiError(300, "")
 
     if (!req.body.platforms) throw new ApiError(400, "missing property `platforms` in the request body")
 
@@ -35,14 +55,12 @@ const validateRequest = (req: NextApiRequest, res: NextApiResponse<Data>, token:
 
     if (!activatedPlatforms || !activatedPlatforms.length) throw new ApiError(400, "Must select at least one platform")
     else if (!req.body.text) throw new ApiError(400, "missing property `text` in the request body")
-    else if (!token) throw new ApiError(400, "Missing Twitter Access Tokens")
 }
 
 const publishTweet = async (message: string, options: PublishTweetOpts) => {
     console.log(`tweeting ${message}`)
 
     const { TWITTER_CLIENT_ID, TWITTER_CLIENT_SECRET } = env
-    console.log({ options })
 
     const client = new TwitterApi({
         appKey: TWITTER_CLIENT_ID,
@@ -83,11 +101,11 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<Data>) => {
         const token = await getToken({ req, secret })
 
         req.body = JSON.parse(req.body)
-        validateRequest(req, res, token)
 
-        //@ts-ignore
-        const { accessToken, refreshToken: accessSecret, userId: twitterId }
-            = await getToken({ req, secret: env.NEXTAUTH_SECRET })
+        validateRequest(req)
+
+        const { accessToken, refreshToken: accessSecret, userId: twitterId } =
+            validateAndExtractToken(token)
 
         let result = undefined;
 
@@ -95,7 +113,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<Data>) => {
 
         if (platforms.farcaster) {
             const fcPrivateKey = getFCpkByTwitterId(twitterId)
-            if (!fcPrivateKey) throw new ApiError(500, 'Couldn not find User Farcaster Private Key')
+            if (!fcPrivateKey) throw new ApiError(500, 'Couldn not find User\'s Farcaster Private Key')
             result = await publishCastMessage(text, fcPrivateKey)
         }
 
@@ -107,11 +125,11 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<Data>) => {
             })
         }
 
-        console.log('result is:', result)
+        console.log('result is:\n', result)
 
         const activatedPlatforms = Object.keys(platforms)
-            .map((key) => { if (platforms[key]) return key })
-            .filter(el => el)
+            .map((p) => platforms[p] ? p : undefined)
+            .filter(p => p)
 
         res.status(200).json({
             success: true, result: `Successfully posted to ${activatedPlatforms
@@ -131,7 +149,6 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<Data>) => {
         }
 
         res.status(error?.statusCode).json(response)
-
     }
 }
 
