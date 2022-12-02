@@ -1,7 +1,15 @@
 import { type NextPage } from "next";
 import Head from "next/head";
-import { ChangeEventHandler, Dispatch, FC, SetStateAction, TextareaHTMLAttributes, useState } from "react";
+import { ChangeEventHandler, Dispatch, FC, SetStateAction, useEffect, useRef, useState } from "react";
+import { Session } from 'next-auth';
+import { signIn, signOut, getSession } from 'next-auth/react';
 import z from 'zod'
+import toast, { Toaster } from 'react-hot-toast';
+
+
+
+
+const wait = (ms: number) => new Promise((res) => setTimeout(res, ms))
 
 const PlatfromsSchema = z.object({
     twitter: z.boolean(),
@@ -10,27 +18,42 @@ const PlatfromsSchema = z.object({
 
 type Platforms = z.infer<typeof PlatfromsSchema>
 
-const Home: NextPage = () => {
-    const [selectedPlatforms, setSelectedPlatforms] = useState<Platforms>({ twitter: false, farcaster: true })
-    const [text, setText] = useState<string>("")
+type File = {
+    name: string;
+    mimeType: string;
+    data: string | ArrayBuffer | null;
+} | null;
 
-    const onSubmit = async () => {
-        const response = await fetch("http://localhost:3000/api/submit", {
-            method: "POST",
-            headers: {
-                contentType: "application/json"
-            },
-            body: JSON.stringify({
-                platforms: selectedPlatforms,
-                text
-            })
-        })
-        const data = await response.json()
-        console.log(data)
-        if (data.error) {
-            console.log(data.result.error)
+const Home: NextPage<{ session: Session }> = ({ session }) => {
+    const [selectedPlatforms, setSelectedPlatforms] = useState<Platforms>({ twitter: true, farcaster: false })
+    const [text, setText] = useState<string>("")
+    const [file, setFile] = useState<File>(null)
+
+
+    const submitMessage = async () => {
+        const message = {
+            platforms: selectedPlatforms,
+            text,
+            media: file
         }
 
+        const response = await fetch("http://localhost:3000/api/submit", {
+            method: "POST",
+            headers: { contentType: "application/json" },
+            body: JSON.stringify(message)
+        })
+
+        const data = await response.json()
+
+        if (data?.error) {
+            toast.error(data.error.message)
+            return
+        }
+
+        if (data?.success) {
+            toast.success(data.result)
+            return
+        }
     }
 
     return (
@@ -42,18 +65,102 @@ const Home: NextPage = () => {
             </Head>
 
             <main className="container mx-auto flex min-h-screen flex-col items-center justify-center p-4">
+                <Toaster />
                 <h1 className="text-5xl font-extrabold leading-normal text-gray-700 md:text-[5rem]">
                     <span className="text-[#8a63d2]">T</span> Cast
                 </h1>
                 <p className="text-2xl text-gray-700">Tweeting & Casting made easy</p>
-
-                <div className="flex flex-col w-full justify-center text-md text-center mt-4">
-                Coming Soon
-                </div>
+                <p className="">
+                    {!session && <>
+                        Not signed in <br />
+                        <button onClick={() => signIn()}>Sign in</button>
+                    </>}
+                </p>
+                {session &&
+                    <Container
+                        session={session}
+                        selectedPlatforms={selectedPlatforms}
+                        setSelectedPlatforms={setSelectedPlatforms}
+                        onSubmit={submitMessage}
+                        text={text}
+                        setText={setText}
+                        file={file}
+                        setFile={setFile}
+                    />
+                }
             </main>
         </>
     );
 };
+
+type ContainerProps = {
+    selectedPlatforms: Platforms;
+    text: string;
+    setSelectedPlatforms: Dispatch<SetStateAction<Platforms>>;
+    setText: Dispatch<SetStateAction<string>>;
+    session: Session;
+    onSubmit: () => void
+    setFile: Dispatch<SetStateAction<File>>;
+    file: File
+};
+
+const Container: FC<ContainerProps> = ({ selectedPlatforms, text, setSelectedPlatforms, setText, onSubmit, session, setFile, file }) => {
+
+    const onFileChange = (e: any) => {
+        const file = e.target.files[0];
+        if (!file) return
+
+        const fileReader = new FileReader();
+        fileReader.readAsBinaryString(file);
+        // fileReader.readAsArrayBuffer(file)
+
+        fileReader.onloadend = () => {
+            const fileContent = fileReader.result;
+            const { name, type: mimeType } = file
+            setFile({
+                data: fileContent,
+                name,
+                mimeType,
+            })
+        };
+    }
+
+    const hiddenFileInput = useRef<HTMLInputElement>(null);
+
+
+
+    return (
+        <div className="flex flex-col w-full justify-center">
+            <Selector selectedPlatforms={selectedPlatforms} setSelectedPlatforms={setSelectedPlatforms} />
+            <div className="flex flex-col justify-center items-center">
+                <div className="flex">
+                    <div className="flex flex-col shrink-0 text-center justify-center items-center pr-8">
+                        <img className="h-16 w-16 object-cover rounded-full"
+                            src={session?.user?.image as string}
+                            alt="Current profile photo" />
+                        <span className="mt-2"> {session?.user?.name}</span>
+                        <div className="bg-red-400 rounded px-1 py-1 mt-2">
+                            <button onClick={() => signOut()}>Sign out</button>
+                        </div>
+                    </div>
+                    <TextArea value={text} onChange={
+                        (e) => {
+                            const text = e.target.value as string
+                            setText(text)
+                        }
+                    } />
+                </div>
+                <input ref={hiddenFileInput} type="file" onChange={onFileChange} className="" />
+                <div className="">
+                    <button disabled={!text}
+                        className={`flex mt-2 py-2 px-2 cursor-pointer bg-sky-500 rounded-md ${!text ? 'bg-sky-200' : ''}`} onClick={onSubmit}>
+                        Post
+                    </button>
+                </div>
+            </div>
+        </div >
+    )
+}
 
 
 type SelectorProps = {
@@ -62,8 +169,7 @@ type SelectorProps = {
 }
 
 const Selector: FC<SelectorProps> = ({ selectedPlatforms, setSelectedPlatforms: setSelectedOptions }) => {
-    const onChange = (event: any) => {
-        const value = event.target.value as "twitter" | "farcaster"
+    const onChange = (value: "twitter" | "farcaster") => {
         setSelectedOptions(prev => ({ ...prev, [value]: !prev[value] }))
     }
 
@@ -79,7 +185,7 @@ const Selector: FC<SelectorProps> = ({ selectedPlatforms, setSelectedPlatforms: 
                                     type="checkbox"
                                     id="flexCheckChecked"
                                     checked={selectedPlatforms[platform as "twitter" | "farcaster"]}
-                                    onChange={onChange}
+                                    onChange={(e) => onChange(e.target.value as "twitter" | "farcaster")}
                                     value={platform}
                                 ></input>
                                 <label
@@ -103,16 +209,26 @@ type TextAreaProps = {
 }
 
 const TextArea: FC<TextAreaProps> = ({ value, onChange }) => (
-    <div className="relative block mt-20 h-full w-5/6 justify-center">
+    <div className="relative block mt-20 h-full w-5/6 justify-center" >
         <span className="sr-only">Post</span>
-        <textarea rows={4} cols={70} className="w-full placeholder:italic placeholder:text-slate-400 block bg-white \
+        <textarea
+            maxLength={200}
+            rows={4}
+            cols={70} className="w-full placeholder:italic placeholder:text-slate-400 block bg-white \
           border border-slate-300 rounded-md py-2 pl-3 pr-3 shadow-sm focus:outline-none \
-          focus:border-sky-500 focus:ring-sky-500 focus:ring-1 sm:text-sm h-52"
+          focus:border-sky-500 focus:ring-sky-500 focus:ring-1 sm:text-sm h-52 resize-auto"
             placeholder="What's happening?"
-            // type="text"
             value={value}
             onChange={onChange}
-        />
+        >
+        </textarea>
     </div>
 )
 export default Home;
+
+export const getServerSideProps = async (context: any) => {
+    const session = await getSession(context);
+    return {
+        props: { session }
+    }
+}
