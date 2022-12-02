@@ -4,11 +4,12 @@ import { AlchemyProvider } from "@ethersproject/providers";
 import { env } from '../../env/server.mjs'
 import { Wallet } from "ethers";
 import { TwitterApi } from 'twitter-api-v2';
-import { getToken } from 'next-auth/jwt';
+import { getToken, JWT } from 'next-auth/jwt';
 import getFCpkByTwitterId from '../../server/common/get-farcaster-private-keys-by-twitter-id'
-import Error from 'next/error.js';
+import { ApiError } from 'next/dist/server/api-utils/index.js';
 
 type Data = {
+    success: boolean;
     result?: any;
     error?: any
 }
@@ -23,15 +24,18 @@ type PublishTweetOpts = {
     accessSecret?: string | undefined;
 }
 
-const validateRequest = (req: NextApiRequest, res: NextApiResponse<Data>) => {
+const validateRequest = (req: NextApiRequest, res: NextApiResponse<Data>, token: JWT | null) => {
+    console.log(req.body)
     if (req.method !== 'POST') return res.status(300).end()
-    if (!req.body.platforms) return res.status(200).json({
-        error: "missing property `platforms` in the request body"
-    })
+    else if (!req.body.platforms) throw new ApiError(400, "missing property `platforms` in the request body")
 
-    if (!req.body.text) return res.status(200).json({
-        error: "missing property `text` in the request body"
-    })
+    const activatedPlatforms = Object.keys(req.body.platforms)
+        .map((key) => { if (req.body.platforms[key]) return key })
+        .filter(el => el)
+
+    if (!activatedPlatforms || !activatedPlatforms.length) throw new ApiError(400, "Must select at least one platform")
+    else if (!req.body.text) throw new ApiError(400, "missing property `text` in the request body")
+    else if (!token) throw new ApiError(400, "Missing Twitter Access Tokens")
 }
 
 const publishTweet = async (message: string, options: PublishTweetOpts) => {
@@ -77,22 +81,21 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<Data>) => {
 
         const secret = env.NEXTAUTH_SECRET;
         const token = await getToken({ req, secret })
-        if (!token) return res.status(200).json({
-            error: "Missing twitter access tokens"
-        })
+
         req.body = JSON.parse(req.body)
-        validateRequest(req, res)
+        validateRequest(req, res, token)
 
         //@ts-ignore
         const { accessToken, refreshToken: accessSecret, userId: twitterId }
             = await getToken({ req, secret: env.NEXTAUTH_SECRET })
+
         let result = undefined;
 
         const { platforms, text, media } = req.body
 
         if (platforms.farcaster) {
             const fcPrivateKey = getFCpkByTwitterId(twitterId)
-            if (!fcPrivateKey) throw new Error("Couldn not get user's farcaster private key")
+            if (!fcPrivateKey) throw new ApiError(500, 'Couldn not find User Farcaster Private Key')
             result = await publishCastMessage(text, fcPrivateKey)
         }
 
@@ -105,24 +108,29 @@ const handler = async (req: NextApiRequest, res: NextApiResponse<Data>) => {
         }
 
         console.log('result is:', result)
+
         const activatedPlatforms = Object.keys(platforms)
             .map((key) => { if (platforms[key]) return key })
             .filter(el => el)
-            .join(' and ')
 
-        res.status(200).json({ result: `Successfully posted to ${activatedPlatforms}` })
+        res.status(200).json({
+            success: true, result: `Successfully posted to ${activatedPlatforms
+                .join(' and ')
+                }`
+        })
     }
 
-    catch (error: Error) {
+    catch (error: any) {
         const response =
         {
+            success: false,
             error:
                 error?.message ?
                     { message: error.message } :
                     error
         }
 
-        res.status(200).json(response)
+        res.status(error?.statusCode).json(response)
 
     }
 }
