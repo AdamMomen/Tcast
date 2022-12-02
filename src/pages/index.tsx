@@ -7,7 +7,6 @@ import z from 'zod'
 import toast, { Toaster } from 'react-hot-toast';
 import { env } from '../env/client.mjs'
 
-console.log({ env })
 const PlatfromsSchema = z.object({
     twitter: z.boolean(),
     farcaster: z.boolean(),
