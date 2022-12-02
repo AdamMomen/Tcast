@@ -25,9 +25,9 @@ type PublishTweetOpts = {
 }
 
 const validateRequest = (req: NextApiRequest, res: NextApiResponse<Data>, token: JWT | null) => {
-    console.log(req.body)
     if (req.method !== 'POST') return res.status(300).end()
-    else if (!req.body.platforms) throw new ApiError(400, "missing property `platforms` in the request body")
+
+    if (!req.body.platforms) throw new ApiError(400, "missing property `platforms` in the request body")
 
     const activatedPlatforms = Object.keys(req.body.platforms)
         .map((key) => { if (req.body.platforms[key]) return key })
