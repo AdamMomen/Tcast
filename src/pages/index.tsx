@@ -43,18 +43,17 @@ const Home: NextPage<{ session: Session }> = ({ session }) => {
             body: JSON.stringify(message)
         })
 
-        if (!response.ok) {
-            toast.error('Netowrk Error')
-            return
-        }
-
         const data = await response.json()
 
         if (data?.error) {
             toast.error(data.error.message)
-            return;
+            return
         }
-        toast.success(data.result)
+
+        if (data?.success) {
+            toast.success(data.result)
+            return
+        }
     }
 
     return (
