@@ -5,12 +5,9 @@ import { Session } from 'next-auth';
 import { signIn, signOut, getSession } from 'next-auth/react';
 import z from 'zod'
 import toast, { Toaster } from 'react-hot-toast';
+import { env } from '../env/client.mjs'
 
-
-
-
-const wait = (ms: number) => new Promise((res) => setTimeout(res, ms))
-
+console.log({ env })
 const PlatfromsSchema = z.object({
     twitter: z.boolean(),
     farcaster: z.boolean(),
@@ -37,7 +34,7 @@ const Home: NextPage<{ session: Session }> = ({ session }) => {
             media: file
         }
 
-        const response = await fetch("http://localhost:3000/api/submit", {
+        const response = await fetch(`${env.NEXT_PUBLIC_URL}/api/submit`, {
             method: "POST",
             headers: { contentType: "application/json" },
             body: JSON.stringify(message)
