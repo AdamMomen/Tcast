@@ -22,7 +22,8 @@ export const serverSchema = z.object({
     TWITTER_CLIENT_SECRET: z.string(),
     BEARER_TOKEN: z.string(),
     VICTOR_FC_PK: z.string(),
-    ALEX_FC_PK: z.string()
+    ALEX_FC_PK: z.string(),
+    ALCHEMY_API_KEY: z.string().optional()
 });
 
 /**

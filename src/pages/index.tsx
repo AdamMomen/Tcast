@@ -33,6 +33,11 @@ const Home: NextPage<{ session: Session }> = ({ session }) => {
             media: file
         }
 
+        const activatedPlatforms = Object.keys(selectedPlatforms)
+            .map((p) => selectedPlatforms[p as 'twitter' | 'farcaster'] ? p : undefined)
+            .filter(p => p)
+            .join(' and ')
+
         const response = await fetch(`${env.NEXT_PUBLIC_URL}/api/submit`, {
             method: "POST",
             headers: { contentType: "application/json" },
@@ -77,7 +82,11 @@ const Home: NextPage<{ session: Session }> = ({ session }) => {
                         session={session}
                         selectedPlatforms={selectedPlatforms}
                         setSelectedPlatforms={setSelectedPlatforms}
-                        onSubmit={submitMessage}
+                        onSubmit={() => toast.promise(submitMessage(), {
+                            loading: 'Posting...',
+                            success: <b>Posting done!</b>,
+                            error: <b>Could not post.</b>,
+                        })}
                         text={text}
                         setText={setText}
                         file={file}
